@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fit G4FL - Prototype v3.11 (Scoreboard Graph UI)</title> <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Press+Start+2P&family=Roboto+Mono&family=Merriweather&family=Lobster&family=Orbitron:wght@400;700&family=Cinzel:wght@400;700&family=Quicksand:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        /* --- BASE & UTILITY STYLES --- */
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.4s ease-in-out, color 0.4s ease-in-out; }
+        .button-base { padding: 0.6rem 1.2rem; font-weight: 500; cursor: pointer; transition: background-color 0.2s, transform 0.15s ease-out, box-shadow 0.2s ease-in-out, border-color 0.2s; border: 1px solid transparent; text-align: center; user-select: none; position: relative; overflow: hidden; }
+        .button-base:hover { transform: translateY(-2px) scale(1.01); box-shadow: 0 5px 12px rgba(0,0,0,0.15); }
+        .button-base:active { transform: scale(0.97); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .button-base::after { content: ''; position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; background: rgba(255, 255, 255, 0.5); opacity: 0; border-radius: 100%; transform: scale(1, 1) translate(-50%, -50%); transform-origin: 50% 50%; }
+        @keyframes ripple { 0% { transform: scale(0, 0) translate(-50%, -50%); opacity: 1; } 100% { transform: scale(20, 20) translate(-50%, -50%); opacity: 0; } }
+        /* .button-base:focus:not(:active)::after { animation: ripple 0.6s ease-out; } */
+
+        .card { border-width: 1px; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08); transition: box-shadow 0.3s ease-in-out; }
+        .card:hover { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.08); }
+
+        input, select, textarea { width: 100%; padding: 0.5rem 0.75rem; border-width: 1px; border-radius: 0.375rem; margin-top: 0.25rem; transition: border-color 0.2s, box-shadow 0.2s; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent-color, #5eead4); box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 94 234 212) / 0.4); }
+        label { font-weight: 500; display: block; margin-bottom: 0.25rem; }
+
+        /* View Transitions */
+        .view-section { display: none; }
+        .view-section.active { display: block; animation: fadeInView 0.4s ease-out forwards; }
+        @keyframes fadeInView { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Login/Logout Visibility Control */
+        #login-section { display: block; } /* Initially visible */
+        #app-content.logged-in #login-section { display: none; }
+        #app-content.logged-out .requires-login { display: none; }
+        #app-content.logged-in .requires-login { display: block; }
+        #app-content.logged-out #logout-button { display: none; }
+        #app-content.logged-in #logout-button { display: inline-block; }
+
+        /* Level Up Indicator Animation */
+        .level-up-indicator { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); padding: 30px 50px; color: white; font-size: 2.5em; font-weight: bold; z-index: 1000; opacity: 0; transition: transform 0.6s cubic-bezier(0.68, -0.6, 0.32, 1.6), opacity 0.5s ease-out; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .level-up-indicator.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        .level-up-indicator #level-up-new-level { font-size: 0.6em; display: block; margin-top: 5px; font-weight: normal; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
+
+        /* Achievement Unlocked Indicator */
+        .achievement-indicator { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(150%); padding: 1rem 1.5rem; border-radius: 0.5rem; font-size: 1.1em; font-weight: bold; z-index: 1001; opacity: 0; transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease-out; text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); background: linear-gradient(135deg, #facc15, #eab308); color: #422006; border: 1px solid #ca8a04; }
+        .achievement-indicator.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .achievement-indicator .ach-name { display: block; font-size: 0.9em; font-weight: normal; margin-top: 0.25rem; opacity: 0.9; }
+
+        /* Mascot Animation */
+        .mascot { font-size: 2.5rem; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: default; }
+        .mascot:hover { transform: scale(1.1) rotate(5deg); }
+        .mascot.happy { transform: scale(1.2) rotate(10deg); }
+
+        /* Navigation Button Styling */
+        .nav-button { padding: 0.5rem 1rem; margin: 0 0.25rem; border-radius: 0.375rem; font-weight: 500; transition: background-color 0.2s, color 0.2s, transform 0.15s ease-out, box-shadow 0.2s ease-in-out; }
+        .nav-button:hover { transform: translateY(-2px); box-shadow: 0 3px 6px rgba(0,0,0,0.1); }
+        .nav-button:active { transform: scale(0.96); }
+
+        /* Daily Tip Styling */
+        .daily-tip { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; text-align: center; font-style: italic; border-width: 1px; transition: background-color 0.3s, border-color 0.3s; }
+
+        .level-emoji { font-size: 1.2em; margin-left: 0.25rem; display: inline-block; }
+
+        /* Workout Form Field Visibility */
+        .form-field-kg, .form-field-reps, .form-field-sets, .form-field-km { display: none; }
+        .form-field-kg.active, .form-field-reps.active, .form-field-sets.active, .form-field-km.active { display: block; animation: fadeIn 0.3s ease-out; }
+
+        /* Snoop Modal Styling */
+        .snoop-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); display: flex; justify-content: center; align-items: center; z-index: 1001; padding: 1rem; opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out; }
+        .snoop-modal.show { opacity: 1; visibility: visible; }
+        .snoop-modal-content { max-width: 500px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 2rem; border-radius: 0.5rem; position: relative; transform: scale(0.95) translateY(10px); transition: transform 0.3s ease-out, opacity 0.3s ease-out; opacity: 0; }
+        .snoop-modal.show .snoop-modal-content { transform: scale(1) translateY(0); opacity: 1; }
+        #close-snoop-modal { transition: transform 0.2s; }
+        #close-snoop-modal:hover { transform: scale(1.2) rotate(90deg); }
+
+        /* Notification Bar Animation */
+        .notification-bar { padding: 0.75rem 1rem; margin-bottom: 1rem; border-radius: 0.375rem; text-align: center; font-size: 0.9rem; display: none; opacity: 0; transform: translateY(-20px); transition: opacity 0.4s ease-out, transform 0.4s ease-out; }
+        .notification-bar.show { display: block; opacity: 1; transform: translateY(0); animation: fadeOutNotification 5s 0.4s forwards; }
+        @keyframes fadeOutNotification { 0% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-10px); } }
+
+        .hidden { display: none; }
+        .achievement-unlocked { font-weight: bold; }
+        .achievement-locked { opacity: 0.6; font-style: italic; }
+
+        /* Mood Selector Styling */
+        .mood-selector label { display: inline-block; margin-right: 0.5rem; cursor: pointer; padding: 0.3rem 0.6rem; border-radius: 1rem; transition: background-color 0.2s, border-color 0.2s, transform 0.15s ease-out, box-shadow 0.2s; border: 1px solid transparent; user-select: none; }
+        .mood-selector label:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+        .mood-selector input[type="radio"] { display: none; }
+        .mood-selector input[type="radio"]:checked + label { transform: scale(1.05); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        /* Admin Only Visibility */
+        .admin-only { display: none; } /* Default hidden, shown via JS */
+
+        /* Chat specific styles */
+        #chat-messages { scroll-behavior: smooth; }
+        #chat-messages p { padding: 0.3rem 0.6rem; margin-bottom: 0.3rem; border-radius: 0.3rem; word-break: break-word; max-width: 85%; }
+        #chat-messages p > strong { margin-right: 0.5rem; }
+        #chat-messages p.new-message-animate { animation: fadeIn 0.5s ease-out; }
+
+        /* Admin Achievement List Styling */
+        #admin-achievements-list label { display: block; margin-bottom: 0.5rem; cursor: pointer; }
+        #admin-achievements-list input[type="checkbox"] { margin-right: 0.5rem; }
+        #admin-achievements-list .achievement-desc { font-size: 0.8rem; opacity: 0.7; margin-left: 1.5rem; }
+
+        /* Chart Container */
+        .chart-container { /* Use class for potentially multiple charts */
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top-width: 1px;
+            border-color: var(--border-color); /* Use theme border color */
+        }
+
+
+        /* --- THEME DEFINITIONS --- */
+        :root { --bg-color: #111827; --text-color: #e5e7eb; --card-bg: #1f2937; --border-color: #374151; --header-color: #2dd4bf; --accent-color: #5eead4; --accent-color-rgb: 94, 234, 212; --primary-bg: #0d9488; --primary-hover: #0f766e; --primary-border: #2dd4bf; --primary-text: white; --secondary-bg: #374151; --secondary-hover: #4b5563; --secondary-border: #6b7280; --secondary-text: #e5e7eb; --input-bg: #1f2937; --input-border: #374151; --input-text: #e5e7eb; --input-placeholder: #6b7280; --progress-bg: #374151; --progress-fill: linear-gradient(90deg, #14b8a6, #5eead4); --nav-active-bg: #0d9488; --nav-active-text: white; --nav-inactive-bg: #374151; --nav-inactive-text: #9ca3af; --tip-bg: #1f2937; --tip-border: #14b8a6; --tip-text: #e5e7eb; --notify-bg: #2dd4bf; --notify-text: #111827; --button-radius: 0.375rem; --font-family: 'Quicksand', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); --level-up-bg: linear-gradient(135deg, #14b8a6, #5eead4); --level-up-shadow: 0 0 15px #2dd4bf; --level-up-border-radius: 0.5rem; --level-up-text-color: #064e3b; }
+        .theme-kennyball { --bg-color: #1a1a1a; --text-color: #e0e0e0; --card-bg: #0d0d0d; --border-color: #00ff00; --header-color: #00ff00; --accent-color: #39ff14; --accent-color-rgb: 57, 255, 20; --primary-bg: #00cc00; --primary-hover: #39ff14; --primary-border: #66ff66; --primary-text: black; --secondary-bg: #333333; --secondary-hover: #555555; --secondary-border: #666666; --secondary-text: #e0e0e0; --input-bg: #000000; --input-border: #00ff00; --input-text: #e0e0e0; --input-placeholder: #777777; --progress-bg: #333333; --progress-fill: #00ff00; --nav-active-bg: #00ff00; --nav-active-text: #000000; --nav-inactive-bg: #222222; --nav-inactive-text: #bbbbbb; --tip-bg: #111111; --tip-border: #00cc00; --tip-text: #cccccc; --notify-bg: #00ff00; --notify-text: #000000; --button-radius: 0px; --font-family: 'Press Start 2P', monospace; --mood-selected-bg: var(--primary-bg); --mood-selected-text: black; --mood-selected-border: var(--primary-border); --level-up-bg: linear-gradient(45deg, #0d0d0d, #00ff00); --level-up-shadow: 0 0 15px #39ff14; --level-up-border-radius: 0px; --level-up-text-color: #000000; }
+        .theme-kennyball .level-up-indicator { text-shadow: 1px 1px 0px #00cc00; }
+        .theme-kennyball .button-primary { box-shadow: 0 0 5px var(--accent-color); text-shadow: 1px 1px 1px rgba(0,0,0,0.4); }
+        .theme-kennyball .text-header { text-shadow: 1px 1px 0px #009900; }
+        .theme-kennyball #chat-messages p { background-color: rgba(0, 255, 0, 0.05); border-left: 2px solid var(--accent-color); }
+        .theme-nikko { --bg-color: #171717; --text-color: #d4d4d4; --card-bg: #262626; --border-color: #404040; --header-color: #facc15; --accent-color: #facc15; --accent-color-rgb: 250, 204, 21; --primary-bg: linear-gradient(45deg, #ca8a04, #facc15); --primary-hover: linear-gradient(45deg, #eab308, #fde047); --primary-border: #eab308; --primary-text: #171717; --secondary-bg: #404040; --secondary-hover: #525252; --secondary-border: #ca8a04; --secondary-text: #d4d4d4; --input-bg: #262626; --input-border: #404040; --input-text: #d4d4d4; --input-placeholder: #737373; --progress-bg: #404040; --progress-fill: linear-gradient(90deg, #ca8a04, #facc15); --nav-active-bg: #ca8a04; --nav-active-text: #171717; --nav-inactive-bg: #404040; --nav-inactive-text: #a3a3a3; --tip-bg: #262626; --tip-border: #ca8a04; --tip-text: #d4d4d4; --notify-bg: #facc15; --notify-text: #422006; --button-radius: 0.5rem; --font-family: 'Inter', sans-serif; --mood-selected-bg: #ca8a04; --mood-selected-text: #171717; --mood-selected-border: #eab308; --level-up-bg: radial-gradient(circle, #fde047, #ca8a04); --level-up-shadow: 0 0 20px #facc15; --level-up-border-radius: 50%; --level-up-text-color: #422006; }
+        .theme-nikko .button-primary { font-weight: bold; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+        .theme-klinkekule { /* Identical to :root */ }
+        .theme-helgrim { --bg-color: #000000; --text-color: #cccccc; --card-bg: #1a1a1a; --border-color: #333333; --header-color: #00ff00; --accent-color: #66ff66; --accent-color-rgb: 102, 255, 102; --primary-bg: #00ff00; --primary-hover: #66ff66; --primary-border: #00ff00; --primary-text: black; --secondary-bg: #222222; --secondary-hover: #333333; --secondary-border: #444444; --secondary-text: #cccccc; --input-bg: #111111; --input-border: #00ff00; --input-text: #e0e0e0; --input-placeholder: #555555; --progress-bg: #333333; --progress-fill: #00ff00; --nav-active-bg: #00ff00; --nav-active-text: #000000; --nav-inactive-bg: #222222; --nav-inactive-text: #aaaaaa; --tip-bg: #111111; --tip-border: #00ff00; --tip-text: #cccccc; --notify-bg: #00ff00; --notify-text: #000000; --button-radius: 0.25rem; --font-family: 'Inter', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: black; --mood-selected-border: var(--primary-border); --level-up-bg: linear-gradient(135deg, #000000, #00ff00); --level-up-shadow: 0 0 15px #66ff66; --level-up-border-radius: 5px; --level-up-text-color: #00ff00; }
+        .theme-helgrim .level-up-indicator { border: 1px solid #00ff00; text-shadow: 0 0 5px #00ff00;}
+        .theme-helgrim .button-primary { text-shadow: 1px 1px 1px rgba(0,0,0,0.5); font-weight: bold;}
+        .theme-helgrim .text-header, .theme-helgrim .text-accent { text-shadow: 0 0 3px var(--header-color); }
+        .theme-helgrim #chat-messages p { background-color: rgba(0, 255, 0, 0.08); border-left: 2px solid var(--accent-color); }
+        .theme-krrroppekatt { --bg-color: #111827; --text-color: #d1d5db; --card-bg: #1f2937; --border-color: #4b5563; --header-color: #a855f7; --accent-color: #c084fc; --accent-color-rgb: 192, 132, 252; --primary-bg: #9333ea; --primary-hover: #a855f7; --primary-border: #c084fc; --primary-text: white; --secondary-bg: #4b5563; --secondary-hover: #6b7280; --secondary-border: #9ca3af; --secondary-text: #d1d5db; --input-bg: #1f2937; --input-border: #4b5563; --input-text: #d1d5db; --input-placeholder: #6b7280; --progress-bg: #4b5563; --progress-fill: linear-gradient(90deg, #9333ea, #c084fc); --nav-active-bg: #9333ea; --nav-active-text: white; --nav-inactive-bg: #374151; --nav-inactive-text: #9ca3af; --tip-bg: #1f2937; --tip-border: #a855f7; --tip-text: #d1d5db; --notify-bg: #c084fc; --notify-text: #111827; --button-radius: 0.5rem; --font-family: 'Inter', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); --level-up-bg: radial-gradient(circle, #c084fc, #7e22ce); --level-up-shadow: 0 0 20px #a855f7; --level-up-border-radius: 50%; --level-up-text-color: white; }
+        .theme-beerbjorn { --bg-color: #3a3a3a; --text-color: #e0e0e0; --card-bg: #4f4f4f; --border-color: #6d6d6d; --header-color: #ffcc66; --accent-color: #e8a87c; --accent-color-rgb: 232, 168, 124; --primary-bg: #8c5e58; --primary-hover: #a47d76; --primary-border: #e8a87c; --primary-text: white; --secondary-bg: #6d6d6d; --secondary-hover: #8a8a8a; --secondary-border: #a0a0a0; --secondary-text: #e0e0e0; --input-bg: #4f4f4f; --input-border: #6d6d6d; --input-text: #e0e0e0; --input-placeholder: #a0a0a0; --progress-bg: #6d6d6d; --progress-fill: #ffcc66; --nav-active-bg: #8c5e58; --nav-active-text: white; --nav-inactive-bg: #6d6d6d; --nav-inactive-text: #b0b0b0; --tip-bg: #4f4f4f; --tip-border: #e8a87c; --tip-text: #e0e0e0; --notify-bg: #ffcc66; --notify-text: #3a3a3a; --button-radius: 0.25rem; --font-family: 'Cinzel', serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); --level-up-bg: linear-gradient(to bottom, #8c5e58, #4f4f4f); --level-up-shadow: 0 0 10px #ffcc66; --level-up-border-radius: 0.5rem; --level-up-text-color: #ffcc66; }
+        .theme-beerbjorn .level-up-indicator { border: 2px solid #ffcc66; }
+        .theme-beerbjorn .text-header { text-shadow: 1px 1px 2px rgba(0,0,0,0.7); }
+        .theme-dardna { --bg-color: #f0fff4; --text-color: #2f4f4f; --card-bg: #ffffff; --border-color: #90ee90; --header-color: #2e8b57; --accent-color: #3cb371; --accent-color-rgb: 60, 179, 113; --primary-bg: #2e8b57; --primary-hover: #3cb371; --primary-border: #66cdaa; --primary-text: white; --secondary-bg: #98fb98; --secondary-hover: #f0fff0; --secondary-border: #90ee90; --secondary-text: #2f4f4f; --input-bg: #ffffff; --input-border: #90ee90; --input-text: #2f4f4f; --input-placeholder: #8fbc8f; --progress-bg: #98fb98; --progress-fill: #2e8b57; --nav-active-bg: #2e8b57; --nav-active-text: white; --nav-inactive-bg: #f0fff0; --nav-inactive-text: #2e8b57; --tip-bg: #f5fffa; --tip-border: #3cb371; --tip-text: #2f4f4f; --notify-bg: #98fb98; --notify-text: #2e8b57; --button-radius: 0.75rem; --font-family: 'Quicksand', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); --level-up-bg: linear-gradient(135deg, #90ee90, #3cb371); --level-up-shadow: 0 0 15px #2e8b57; --level-up-border-radius: 50% 10px 50% 10px; --level-up-text-color: #f0fff4; }
+        .theme-dardna .button-primary { box-shadow: 0 2px 3px rgba(46, 139, 87, 0.3); }
+        .theme-skytebasen { --bg-color: #0c0a1d; --text-color: #d1d5db; --card-bg: #1e1b3a; --border-color: #4c3f78; --header-color: #a78bfa; --accent-color: #c084fc; --accent-color-rgb: 192, 132, 252; --primary-bg: #7c3aed; --primary-hover: #9333ea; --primary-border: #a78bfa; --primary-text: white; --secondary-bg: #4c3f78; --secondary-hover: #6d28d9; --secondary-border: #7c3aed; --secondary-text: #d1d5db; --input-bg: #1e1b3a; --input-border: #4c3f78; --input-text: #d1d5db; --input-placeholder: #6b7280; --progress-bg: #4c3f78; --progress-fill: linear-gradient(90deg, #7c3aed, #c084fc); --nav-active-bg: #7c3aed; --nav-active-text: white; --nav-inactive-bg: #4c3f78; --nav-inactive-text: #9ca3af; --tip-bg: #1e1b3a; --tip-border: #a78bfa; --tip-text: #d1d5db; --notify-bg: #c084fc; --notify-text: #0c0a1d; --button-radius: 0.1rem; --font-family: 'Orbitron', sans-serif; --mood-selected-bg: var(--primary-bg); --mood-selected-text: white; --mood-selected-border: var(--primary-border); --level-up-bg: radial-gradient(circle, #0c0a1d, #7c3aed, #c084fc); --level-up-shadow: 0 0 25px #a78bfa; --level-up-border-radius: 3px; --level-up-text-color: white; }
+        .theme-skytebasen .level-up-indicator { border: 1px solid #a78bfa; text-shadow: 0 0 5px #fff;}
+        .theme-skytebasen .button-primary, .theme-skytebasen .button-secondary { letter-spacing: 1px; }
+
+        /* --- APPLY THEME VARIABLES --- */
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: var(--font-family); }
+        .bg-card, .snoop-modal-content { background-color: var(--card-bg); }
+        .border-card { border-color: var(--border-color); }
+        .text-header { color: var(--header-color); }
+        .text-accent { color: var(--accent-color); }
+        .button-primary { background: var(--primary-bg); color: var(--primary-text, white); border-color: var(--primary-border); border-radius: var(--button-radius); }
+        .button-primary:hover { background: var(--primary-hover); }
+        .button-secondary { background-color: var(--secondary-bg); color: var(--secondary-text, var(--text-color)); border-color: var(--secondary-border); border-radius: var(--button-radius); }
+        .button-secondary:hover { background-color: var(--secondary-hover); }
+        input, select, textarea { background-color: var(--input-bg); border-color: var(--input-border); color: var(--input-text); border-radius: var(--button-radius); font-family: var(--font-family); }
+        input::placeholder, textarea::placeholder { color: var(--input-placeholder); opacity: 0.8; }
+        .progress-bar-bg { background-color: var(--progress-bg); border-radius: var(--button-radius); overflow: hidden; height: 1rem; }
+        .progress-bar-fill { background: var(--progress-fill); border-radius: var(--button-radius); height: 100%; transition: width 0.6s cubic-bezier(0.65, 0, 0.35, 1); box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); }
+        .nav-button-active { background-color: var(--nav-active-bg); color: var(--nav-active-text); border-radius: var(--button-radius); }
+        .nav-button-inactive { background-color: var(--nav-inactive-bg); color: var(--nav-inactive-text); border-radius: var(--button-radius); }
+        .daily-tip { background-color: var(--tip-bg); border-color: var(--tip-border); color: var(--tip-text); }
+        .notification-bar { background-color: var(--notify-bg); color: var(--notify-text); }
+        .mood-selector label { border-color: var(--input-border); }
+        .mood-selector input[type="radio"]:checked + label { background-color: var(--mood-selected-bg); color: var(--mood-selected-text); border-color: var(--mood-selected-border); }
+        .level-up-indicator { background: var(--level-up-bg); box-shadow: var(--level-up-shadow); border-radius: var(--level-up-border-radius); color: var(--level-up-text-color); }
+
+        /* --- ANIMATIONS --- */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body class="p-4 md:p-8"> <header class="mb-6 flex flex-col sm:flex-row justify-between items-center">
+        <h1 class="text-3xl font-bold text-header mb-4 sm:mb-0">Fit G4FL</h1>
+        <div class="flex items-center space-x-2 sm:space-x-4">
+            <button id="check-stat-button" class="button-base button-secondary text-xs py-1 px-2 hidden">Sjekk Ukens Stats</button>
+            <span id="logged-in-user" class="font-medium text-sm sm:text-base"></span>
+            <button id="logout-button" class="button-base button-secondary text-xs py-1 px-2">Logg ut</button>
+        </div>
+    </header>
+
+    <div id="demo-mode-indicator" class="text-center p-2 mb-4 text-sm italic text-accent font-semibold border border-dashed border-card rounded">
+        Laster...
+    </div>
+
+    <div id="notification-area" class="notification-bar"></div>
+
+    <div id="daily-tip-container" class="daily-tip">Laster dagens (hysteriske) tips...</div>
+
+    <div id="app-content" class="logged-out"> <section id="login-section" class="mb-6 view-section active"> <div class="card bg-card border-card">
+                <h2 class="text-2xl font-semibold mb-4 text-header">Velg Bruker & Logg Inn</h2>
+                <form id="login-form" class="flex flex-col sm:flex-row items-end gap-4">
+                    <div class="flex-grow w-full">
+                        <label for="user-select">Bruker:</label>
+                        <select id="user-select" name="user-select" required>
+                            <option value="" disabled selected>-- Laster brukere --</option>
+                            </select>
+                    </div>
+                    <div class="flex-grow w-full">
+                         <label for="password-input">Passord:</label>
+                         <input type="password" id="password-input" name="password" class="font-mono" required>
+                    </div>
+                    <button type="submit" id="login-btn" class="button-base button-primary w-full sm:w-auto">Logg Inn</button>
+                </form>
+                 <p class="text-xs italic mt-2 opacity-80">Passordet er den første bokstaven i brukernavnet ditt.</p>
+                 <div id="status" class="mt-4 text-sm text-red-400"></div> </div>
+        </section>
+
+        <div class="requires-login">
+
+            <nav class="mb-6 text-center flex flex-wrap justify-center gap-2">
+                <button class="nav-button view-button nav-button-inactive" data-view="logger">Logg Økt</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="profile">Min Profil</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="log">Min Logg</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="userlist">Brukerliste</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="scoreboard">Scoreboard</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="achievements">Achievements</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="chat">Chat</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="about">Om Appen</button>
+                <button class="nav-button view-button nav-button-inactive" data-view="extras">Ekstra</button>
+                </nav>
+
+            <main>
+                <section id="logger-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Loggfør Økt</h2>
+                        <form id="workout-form" class="space-y-4">
+                            <div>
+                                <label for="exercise-type">Type aktivitet:</label>
+                                <select id="exercise-type" name="exercise-type" required>
+                                    <option value="" disabled selected>-- Velg type --</option>
+                                    <option value="Markløft">Markløft</option>
+                                    <option value="Knebøy">Knebøy</option>
+                                    <option value="Frontbøy">Frontbøy</option>
+                                    <option value="Militærpress">Militærpress</option>
+                                    <option value="Arm curl">Arm curl</option>
+                                    <option value="Sideløft">Sideløft</option>
+                                    <option value="Hip thrust">Hip thrust</option>
+                                    <option value="Russian twist">Russian twist</option>
+                                    <option value="Gåtur">Gåtur</option>
+                                    <option value="Annet">Annet (spesifiser under)</option>
+                                </select>
+                            </div>
+                            <div id="custom-exercise-name-field" style="display: none;">
+                                <label for="exercise">Navn på øvelse:</label>
+                                <input type="text" id="exercise" name="exercise" placeholder="F.eks. Benkpress">
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div class="form-field-kg active">
+                                    <label for="kilos">Kilo:</label>
+                                    <input type="number" id="kilos" name="kilos" step="0.1" min="0" max="250" placeholder="60">
+                                </div>
+                                <div class="form-field-reps active">
+                                    <label for="reps">Reps:</label>
+                                     <input type="number" id="reps" name="reps" min="1" max="200" placeholder="8">
+                                </div>
+                                <div class="form-field-sets active">
+                                    <label for="sets">Sett:</label>
+                                    <input type="number" id="sets" name="sets" min="1" placeholder="3">
+                                </div>
+                            </div>
+                            <div class="form-field-km">
+                                 <label for="km">Kilometer (km):</label>
+                                 <input type="number" id="km" name="km" step="0.1" min="0.1" max="50" placeholder="5.5">
+                             </div>
+                             <div>
+                                 <label for="workout-comment">Kommentar (valgfritt):</label>
+                                 <input type="text" id="workout-comment" name="workout-comment" placeholder="Hvordan gikk økten? Noe spesielt?">
+                             </div>
+                             <div class="mt-4">
+                                 <label>Hvordan føltes økten? (Påvirker XP)</label>
+                                 <div class="mood-selector mt-1 flex flex-wrap gap-2">
+                                     <input type="radio" name="mood" id="mood-great" value="great"><label for="mood-great" class="border-card">😃 Lett</label>
+                                     <input type="radio" name="mood" id="mood-good" value="good" checked><label for="mood-good" class="border-card">😊 Normal</label>
+                                     <input type="radio" name="mood" id="mood-ok" value="ok"><label for="mood-ok" class="border-card">😐 OK+</label>
+                                     <input type="radio" name="mood" id="mood-meh" value="meh"><label for="mood-meh" class="border-card">😕 Tungt</label>
+                                     <input type="radio" name="mood" id="mood-bad" value="bad"><label for="mood-bad" class="border-card">😩 Blytungt!</label>
+                                 </div>
+                             </div>
+                            <button type="submit" class="button-base button-primary w-full sm:w-auto mt-4">Legg til aktivitet</button>
+                        </form>
+                    </div>
+                    <div class="card bg-card border-card mt-6">
+                         <h3 class="text-xl font-semibold mb-3 text-accent">Økt så langt:</h3>
+                         <ul id="current-session-list" class="space-y-2 mb-4 list-disc list-inside">
+                             <li class="italic">Ingen aktivitet lagt til enda...</li>
+                         </ul>
+                         <button id="complete-workout-button" class="button-base button-primary w-full" disabled>Fullfør Økt & Få XP!</button>
+                    </div>
+                </section>
+
+                <section id="profile-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Min Profil</h2>
+                        <div class="space-y-4">
+                            <p class="text-lg">Nivå: <span id="level-display" class="font-bold text-accent">Laster...</span><span id="level-emoji" class="level-emoji"></span></p>
+                            <div>
+                                <p>XP Fremgang:</p>
+                                <div class="w-full progress-bar-bg h-4 mt-1 overflow-hidden">
+                                    <div id="xp-progress-bar" class="progress-bar-fill h-4" style="width: 0%;"></div>
+                                </div>
+                                <p class="text-sm text-right mt-1"><span id="xp-current">0</span> / <span id="xp-next-level">10</span> XP</p>
+                            </div>
+                            <p>XP Bank (Total): <span id="xp-total" class="font-bold text-accent">0</span> XP</p>
+                            <p>Dager trent på rad (Streak): <span id="streak-counter" class="font-bold text-accent">0</span></p>
+                        </div>
+
+                        <div id="xpChartContainer" class="chart-container"> <h3 class="text-lg font-semibold mb-2 text-accent">XP per Ukedag (Siste 7 dager)</h3>
+                            <div class="relative h-64"> <canvas id="xpPerDayChart"></canvas>
+                            </div>
+                            <p id="xpChartError" class="text-xs italic text-red-400 mt-2"></p> </div>
+                        </div>
+                </section>
+
+                <section id="log-view" class="view-section">
+                     <div class="card bg-card border-card">
+                         <h2 class="text-2xl font-semibold mb-4 text-header">Min Treningslogg</h2>
+                         <div id="log-entries" class="space-y-4">
+                             <p class="italic">Laster logg...</p>
+                             </div>
+                     </div>
+                 </section>
+
+                <section id="userlist-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Brukerliste</h2>
+                        <ul id="user-list-display" class="space-y-1"> <li class="italic">Laster brukerliste...</li>
+                            </ul>
+                    </div>
+                </section>
+
+                <section id="scoreboard-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Ukens Scoreboard (XP)</h2>
+                        <ol id="scoreboard-list" class="list-decimal list-inside space-y-2">
+                             <li class="italic">Laster scoreboard...</li>
+                             </ol>
+                        <div id="totalXpChartContainer" class="chart-container"> <h3 class="text-lg font-semibold mb-2 text-accent">Samlet XP per Ukedag (Siste 7 dager)</h3>
+                            <div class="relative h-64"> <canvas id="totalXpPerDayChart"></canvas>
+                            </div>
+                            <p id="totalXpChartError" class="text-xs italic text-red-400 mt-2"></p> </div>
+                   </div>
+                </section>
+
+                <section id="achievements-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Achievements</h2>
+                        <div id="achievements-list" class="space-y-3">
+                             <p class="italic">Laster achievements...</p>
+                             </div>
+                   </div>
+                </section>
+
+                <section id="chat-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">G4FL Chat</h2>
+                        <div id="chat-messages" class="mb-4 p-2 border border-card h-64 overflow-y-auto flex flex-col-reverse bg-opacity-10" style="background-color: rgba(128, 128, 128, 0.1);">
+                            <p class="text-center italic text-sm opacity-70 p-4" id="chat-loading-msg">Laster meldinger...</p>
+                            </div>
+                        <form id="chat-form" class="flex gap-2">
+                            <input type="text" id="chat-input" placeholder="Skriv en melding..." class="flex-grow" required autocomplete="off" maxlength="280">
+                            <button type="submit" class="button-base button-primary">Send</button>
+                        </form>
+                    </div>
+                </section>
+
+                <section id="about-view" class="view-section">
+                     <div class="card bg-card border-card">
+                         <h2 class="text-2xl font-semibold mb-4 text-header">Om Fit G4FL</h2>
+                         <div class="space-y-4 text-base leading-relaxed prose prose-invert max-w-none"> <p> Yo! Vi er kanskje rå i gaming, og det er få folk man stoler mer på enn gjengen her når det gjelder raids eller clutch plays. Men... la oss være ærlige, kanskje ikke alle er like kjappe på 60-meteren lenger? 😉 </p>
+                              <p> Denne appen er et forsøk på å gjøre det litt morsommere å komme seg i litt bedre form. Se på det som et nytt spill vi kan spille sammen – et der vi levler opp IRL (In Real Life). </p>
+                              <p> Målet er ikke å bli verdensmester i noe som helst (med mindre det er gaming, da), men å ha det gøy, logge litt fremgang, og kanskje føle seg litt mindre "lubben, feit og træg/sen" underveis. Vi heier på hverandre, enten det er i spillet eller på vei til neste level her! </p>
+                              <p class="mt-6 text-sm italic opacity-70"> Laget med kode og (litt for mye?) koffein. </p>
+                         </div>
+                     </div>
+                </section>
+
+                <section id="extras-view" class="view-section">
+                    <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Ekstra</h2>
+                        <div class="flex flex-col items-center space-y-8"> <div class="text-center">
+                                <button id="motivation-button" class="button-base button-secondary">Mistet Motivasjonen?</button>
+                                <p class="text-xs mt-1 opacity-70">(Trykk for en brutal sannhet)</p>
+                            </div>
+                            <div>
+                                <p class="text-center mb-2 font-medium">Motivasjonsmaskot:</p>
+                                <div id="mascot" class="mascot text-center">😺</div>
+                                <p id="mascot-message" class="text-sm italic text-center mt-1 min-h-[1.25rem]">...</p> </div>
+                            <div class="text-center">
+                                <button id="retro-mode-button" class="button-base button-secondary">Retro Mode Lyd (Av/På)</button>
+                                <p class="text-xs mt-1 opacity-70">(Krever interaksjon for å starte lyd)</p>
+                            </div>
+
+                            <div id="nikko-section" class="text-center" style="display: none;">
+                                 <button id="nikko-buy-xp-button" class="button-base button-primary animate-pulse">💎 Kjøp XP 💎</button>
+                                 <p class="text-xs mt-1 opacity-70">(Bare for Nikko?)</p>
+                            </div>
+
+                             <div class="text-center admin-only"> <button id="admin-extras-button" class="button-base button-primary border-red-500 text-red-100">
+                                     ⚙️ Admin Panel ⚙️
+                                 </button>
+                                  <p class="text-xs mt-1 opacity-70">(Kun for Helgrim)</p>
+                             </div>
+
+
+                            <div class="mt-6 border-t border-card pt-6 w-full text-center space-y-4">
+                                <h3 class="text-lg font-medium mb-3">Datahåndtering</h3>
+                                <div class="flex flex-wrap justify-center gap-3">
+                                    <button id="save-data-button" class="button-base button-secondary" title="Data lagres automatisk til Firebase">Lagre Data Manuelt</button>
+                                    <button id="export-data-button" class="button-base button-secondary">Eksporter Data</button>
+                                    <button id="import-data-button" class="button-base button-secondary">Importer Data</button>
+                                    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                                </div>
+                                <p id="data-action-message" class="text-xs italic mt-2 h-4"></p> </div>
+                            <div class="mt-6 border-t border-card pt-6 w-full text-center">
+                                <h3 class="text-lg font-medium mb-3">Bytt Tema Manuelt</h3>
+                                <div class="flex flex-wrap justify-center gap-2">
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="kennyball">Kennyball</button>
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="nikko">Nikko</button>
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="klinkekule">Klinkekule</button>
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="helgrim">Helgrim</button>
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="krrroppekatt">Krrroppekatt</button>
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="beerbjorn">Beerbjorn</button>
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="dardna">Dardna</button>
+                                    <button class="button-base button-secondary theme-button text-xs" data-theme="skytebasen">Skytebasen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="admin-view" class="view-section"> <div class="card bg-card border-card">
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Admin Panel</h2>
+
+                        <div class="space-y-4 mb-6 pb-6 border-b border-card">
+                            <h3 class="text-lg font-medium text-accent">Juster XP / Tilbakestill Bruker</h3>
+                            <div>
+                                <label for="admin-user-select">Velg bruker:</label>
+                                <select id="admin-user-select" name="admin-user-select" required>
+                                    <option value="" disabled selected>-- Laster brukere --</option>
+                                    </select>
+                            </div>
+                            <div>
+                                <label for="admin-xp-amount">XP Poeng (+/-):</label>
+                                <input type="number" id="admin-xp-amount" name="admin-xp-amount" step="1" placeholder="F.eks. 100 eller -50">
+                            </div>
+                            <div class="flex flex-wrap gap-4"> <button id="admin-give-xp-button" class="button-base button-primary flex-grow sm:flex-grow-0">Juster XP</button>
+                                <button id="admin-reset-user-button" class="button-base button-secondary border-yellow-500 text-yellow-300 flex-grow sm:flex-grow-0">Tilbakestill Bruker</button>
+                            </div>
+                            <p id="admin-action-message" class="text-xs italic mt-2 h-4"></p> </div>
+
+                        <div class="space-y-4 mb-6 pb-6 border-b border-card">
+                             <h3 class="text-lg font-medium text-accent">Legg til Ny Bruker</h3>
+                             <div>
+                                 <label for="admin-new-username">Nytt Brukernavn:</label>
+                                 <input type="text" id="admin-new-username" placeholder="F.eks. NySpiller123" required>
+                             </div>
+                             <div class="flex gap-4">
+                                <button id="admin-add-user-button" class="button-base button-primary flex-grow">Legg til Bruker</button>
+                             </div>
+                             <p id="admin-add-user-message" class="text-xs italic mt-2 h-4"></p> </div>
+
+                        <div class="space-y-4 mb-6 pb-6 border-b border-card">
+                            <h3 class="text-lg font-medium text-accent">Juster Achievements (for valgt bruker)</h3>
+                            <div id="admin-achievements-list" class="space-y-2 max-h-60 overflow-y-auto border border-card p-3 rounded">
+                                <p class="italic text-sm">Velg en bruker for å se achievements...</p>
+                            </div>
+                            <div class="flex gap-4">
+                                <button id="admin-save-achievements-button" class="button-base button-primary flex-grow">Lagre Achievements</button>
+                            </div>
+                             <p id="admin-achievements-message" class="text-xs italic mt-2 h-4"></p> </div>
+                        <div class="space-y-4">
+                             <h3 class="text-lg font-medium text-red-500">Slett Bruker (Permanent!)</h3>
+                             <p class="text-sm text-red-400">Advarsel: Dette kan ikke angres!</p>
+                             <div class="flex gap-4">
+                                <button id="admin-delete-user-button" class="button-base bg-red-600 hover:bg-red-800 text-white border-red-800 flex-grow">Slett Valgt Bruker</button>
+                             </div>
+                             <p id="admin-delete-user-message" class="text-xs italic mt-2 h-4"></p> </div>
+                        </div>
+                </section>
+
+            </main> </div> </div> <div id="snoop-modal" class="snoop-modal">
+        <div class="snoop-modal-content bg-card border-card relative">
+            <button id="close-snoop-modal" class="absolute top-2 right-3 text-2xl font-bold hover:text-red-500 transition-colors duration-200">&times;</button>
+            <h3 id="snoop-modal-title" class="text-xl font-semibold mb-4 text-header">Info for...</h3>
+            <div id="snoop-user-info" class="mb-4 text-sm border-b border-card pb-3 space-y-1">
+                 <p><strong>Nivå:</strong> <span id="snoop-level">--</span></p>
+                 <p><strong>XP (Total):</strong> <span id="snoop-xp">--</span></p>
+                 <p><strong>Sist innlogget:</strong> <span id="snoop-last-login">--</span></p>
+                 <p><strong>Siste humør:</strong> <span id="snoop-last-mood">--</span></p>
+                 <p class="mt-2 pt-2 border-t border-dashed border-card"><strong>Siste 7 dager:</strong></p>
+                 <p>Løftet Volum: <span id="snoop-7d-volume">--</span> kg</p>
+                 <p>Gått Distanse: <span id="snoop-7d-km">--</span> km</p>
+                 <p>Opptjent XP: <span id="snoop-7d-xp">--</span></p>
+            </div>
+             <div id="snoop-achievements-section" class="mb-4 text-sm border-b border-card pb-3 space-y-1">
+                  <h5 class="text-md font-semibold text-accent">Achievements:</h5>
+                  <ul id="snoop-achievements" class="list-disc list-inside text-xs space-y-1">
+                       <li class="italic">Laster...</li>
+                  </ul>
+             </div>
+            <h4 class="text-lg font-semibold mb-2 text-accent">Siste 7 dagers logg:</h4>
+            <div id="snoop-modal-log" class="text-sm space-y-3 max-h-48 overflow-y-auto pr-2"> <p class="italic">Laster logg...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="level-up-indicator" class="level-up-indicator">
+        LEVEL UP!
+        <span id="level-up-new-level" class="block text-lg"></span>
+    </div>
+
+    <div id="achievement-unlocked-indicator" class="achievement-indicator">
+        🏆 Achievement Unlocked!
+        <span class="ach-name">Achievement Name Here</span>
+    </div>
+
+
+    <footer class="mt-12 text-center text-sm opacity-70">
+        <p>Fit G4FL Prototype v3.11 - Scoreboard Graph UI</p> </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+    <script src="Script Level names.js"></script>
+    <script src="Script 1.js"></script>
+    <script src="Script 3.js"></script>
+    <script src="Script 4.js"></script>
+    <script src="Script 5.js"></script> <script src="Script 2.js"></script> </body>
+</html>
