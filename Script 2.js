@@ -4,6 +4,7 @@
 // Includes logic for 48-hour log entry deletion.
 // Adds logic to trigger achievement pop-up.
 // Calls chart rendering functions from Script 5.js.
+// Added logic for "Skritt" (Steps) activity type and scoreboard.
 
 console.log("Script 2.js loaded: Core logic starting.");
 
@@ -24,7 +25,7 @@ let currentActiveView = null; // Track the currently active view
 
 // --- DOM Element Variables ---
 // Declared here, assigned in initializeDOMElements
-let body, appContent, loginForm, userSelect, passwordInput, loginButton, statusDisplay, loggedInUserDisplay, logoutButton, notificationArea, themeButtons, viewButtons, viewSections, workoutForm, exerciseTypeSelect, customExerciseNameField, customExerciseInput, kgField, repsField, setsField, kmField, currentSessionList, completeWorkoutButton, levelDisplay, levelEmojiDisplay, xpCurrentDisplay, xpNextLevelDisplay, xpTotalDisplay, xpProgressBar, logEntriesContainer, userListDisplay, levelUpIndicator, levelUpNewLevel, mascotElement, mascotMessage, streakCounter, retroModeButton, dailyTipContainer, snoopModal, snoopModalTitle, snoopModalLog, closeSnoopModalButton, saveDataButton, exportDataButton, importDataButton, importFileInput, dataActionMessage, motivationButton, demoModeIndicator, checkStatButton, scoreboardList, achievementsListContainer, workoutCommentInput, moodSelector, adminOnlyElements, adminUserSelect, adminXpAmountInput, adminGiveXpButton, adminActionMessage, adminNewUsernameInput, adminAddUserButton, adminAddUserMessage, adminExtrasButton;
+let body, appContent, loginForm, userSelect, passwordInput, loginButton, statusDisplay, loggedInUserDisplay, logoutButton, notificationArea, themeButtons, viewButtons, viewSections, workoutForm, exerciseTypeSelect, customExerciseNameField, customExerciseInput, kgField, repsField, setsField, kmField, skrittField, /* NEW */ currentSessionList, completeWorkoutButton, levelDisplay, levelEmojiDisplay, xpCurrentDisplay, xpNextLevelDisplay, xpTotalDisplay, xpProgressBar, logEntriesContainer, userListDisplay, levelUpIndicator, levelUpNewLevel, mascotElement, mascotMessage, streakCounter, retroModeButton, dailyTipContainer, snoopModal, snoopModalTitle, snoopModalLog, closeSnoopModalButton, saveDataButton, exportDataButton, importDataButton, importFileInput, dataActionMessage, motivationButton, demoModeIndicator, checkStatButton, scoreboardList, scoreboardStepsList, /* NEW */ achievementsListContainer, workoutCommentInput, moodSelector, adminOnlyElements, adminUserSelect, adminXpAmountInput, adminGiveXpButton, adminActionMessage, adminNewUsernameInput, adminAddUserButton, adminAddUserMessage, adminExtrasButton;
 // New Admin Elements
 let adminResetUserButton, adminAchievementsListDiv, adminSaveAchievementsButton, adminAchievementsMessage, adminDeleteUserButton, adminDeleteUserMessage;
 // Chat elements (will be used by functions in Script 3, but fetched here)
@@ -39,7 +40,8 @@ let achievementIndicator, achievementIndicatorNameSpan;
 // --- Anti-Cheat Limits ---
 const MAX_WEIGHT_KG = 250;
 const MAX_REPS = 200;
-const MAX_KM_WALK = 50; // Per activity log, not per day total yet
+const MAX_KM_WALK = 50;
+const MAX_STEPS = 35000; // NEW Limit for steps
 
 // --- Initialization ---
 
@@ -115,6 +117,7 @@ function initializeDOMElements() {
     repsField = document.querySelector('.form-field-reps');
     setsField = document.querySelector('.form-field-sets');
     kmField = document.querySelector('.form-field-km');
+    skrittField = document.querySelector('.form-field-skritt'); // NEW: Fetch steps field container
     currentSessionList = document.getElementById('current-session-list');
     completeWorkoutButton = document.getElementById('complete-workout-button');
     levelDisplay = document.getElementById('level-display');
@@ -145,6 +148,7 @@ function initializeDOMElements() {
     demoModeIndicator = document.getElementById('demo-mode-indicator');
     checkStatButton = document.getElementById('check-stat-button');
     scoreboardList = document.getElementById('scoreboard-list');
+    scoreboardStepsList = document.getElementById('scoreboard-steps-list'); // NEW: Fetch steps scoreboard list
     achievementsListContainer = document.getElementById('achievements-list');
     workoutCommentInput = document.getElementById('workout-comment');
     moodSelector = document.querySelector('.mood-selector');
@@ -202,6 +206,9 @@ function initializeDOMElements() {
     if (!adminResetUserButton || !adminAchievementsListDiv || !adminSaveAchievementsButton || !adminDeleteUserButton) {
          console.warn("One or more NEW admin UI elements (reset, achievements, delete) were not found. Check HTML IDs.");
     }
+    // Check if new Skritt elements were found
+    if (!skrittField) console.warn("Skritt input field container (.form-field-skritt) not found.");
+    if (!scoreboardStepsList) console.warn("Steps scoreboard list (#scoreboard-steps-list) not found.");
 }
 
 /**
@@ -209,7 +216,7 @@ function initializeDOMElements() {
  * Fetches DOM elements, sets up Firebase, displays initial UI, and attaches event listeners.
  */
 function initializeApp() {
-    console.log("Initializing App v3.11..."); // Update version
+    console.log("Initializing App v3.12..."); // Update version
     initializeDOMElements(); // Get references to all elements first
 
     if (demoModeIndicator) demoModeIndicator.textContent = "Live Mode - Initialiserer...";
@@ -238,6 +245,7 @@ function initializeApp() {
 
 /**
  * Loads user data from Firebase RTDB and sets up a listener for real-time updates.
+ * ** Includes migration/default for new stats.totalSteps **
  */
 function loadUsersFromFirebase() {
     if (!firebaseInitialized || !usersRef) {
@@ -253,7 +261,8 @@ function loadUsersFromFirebase() {
             const dataFromFirebase = snapshot.val();
             console.log("Snapshot value received:", dataFromFirebase);
 
-             const defaultUserStructure = { xp: 0, level: 1, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: new Set(), timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
+             // Default structure now includes totalSteps
+             const defaultUserStructure = { xp: 0, level: 0, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, totalSteps: 0, /* NEW */ themesTried: new Set(), timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
 
             if (dataFromFirebase === null) {
                 console.warn("Firebase '/users' is empty or null.");
@@ -261,7 +270,7 @@ function loadUsersFromFirebase() {
                     console.log("Database is empty. Initializing with default users...");
                     let defaultUsersForFirebase;
                      if (typeof getDefaultUsers === 'function') {
-                         defaultUsersForFirebase = getDefaultUsers();
+                         defaultUsersForFirebase = getDefaultUsers(); // getDefaultUsers should now include totalSteps: 0
                      } else {
                          console.error("loadUsersFromFirebase: getDefaultUsers function is not defined! Cannot initialize DB.");
                          loadDefaultUsersLocally();
@@ -277,12 +286,11 @@ function loadUsersFromFirebase() {
                         }
                          if (!Array.isArray(user.log)) user.log = [];
                          if (!Array.isArray(user.achievements)) user.achievements = [];
-                         // Calculate initial level based on XP using NEW logic
-                         if (typeof getLevelFromTotalXP === 'function') { // Use new function name
+                         if (typeof getLevelFromTotalXP === 'function') {
                             user.level = getLevelFromTotalXP(user.xp || 0);
                          } else {
                             console.warn("loadUsersFromFirebase: getLevelFromTotalXP not found during default user init. Setting level to 0.");
-                            user.level = 0; // Default level is 0 now
+                            user.level = 0;
                          }
                     });
 
@@ -309,23 +317,32 @@ function loadUsersFromFirebase() {
 
                 Object.keys(users).forEach(username => {
                     const defaultClone = JSON.parse(JSON.stringify(defaultUserStructure));
+                    // Ensure stats object exists before merging
+                    const existingStats = users[username]?.stats || {};
+                    // Merge defaults first, then existing data, then ensure nested stats are merged
                     users[username] = { ...defaultClone, ...users[username] };
-                    users[username].stats = { ...defaultClone.stats, ...(users[username].stats || {}) };
+                    users[username].stats = { ...defaultClone.stats, ...existingStats }; // Merge default stats with existing stats
 
+                    // Convert themesTried array back to Set
                     if (Array.isArray(users[username].stats.themesTried)) {
                         users[username].stats.themesTried = new Set(users[username].stats.themesTried);
                     } else {
                         users[username].stats.themesTried = new Set();
                     }
+                    // Ensure log and achievements are arrays
                     if (!Array.isArray(users[username].log)) users[username].log = [];
                     if (!Array.isArray(users[username].achievements)) users[username].achievements = [];
+                    // Ensure totalSteps exists and is a number
+                    if (typeof users[username].stats.totalSteps !== 'number') {
+                        users[username].stats.totalSteps = 0;
+                    }
 
-                    // Ensure level is correctly calculated based on XP using NEW logic
-                    if (typeof getLevelFromTotalXP === 'function') { // Use new function name
+                    // Recalculate level based on XP
+                    if (typeof getLevelFromTotalXP === 'function') {
                         users[username].level = getLevelFromTotalXP(users[username].xp || 0);
                     } else {
                         console.warn(`loadUsersFromFirebase: getLevelFromTotalXP not found for user ${username}. Level might be incorrect.`);
-                        users[username].level = users[username].level || 0; // Fallback based on new logic (0 XP = level 0)
+                        users[username].level = users[username].level || 0;
                     }
                 });
 
@@ -352,14 +369,14 @@ function loadUsersFromFirebase() {
 
 /**
  * Loads default user data locally. Used as a fallback or for demo mode.
+ * ** Includes default totalSteps **
  */
 function loadDefaultUsersLocally() {
     console.log("Loading default users locally (Demo Mode or Fallback).");
      if (typeof getDefaultUsers === 'function') {
-        users = getDefaultUsers();
+        users = getDefaultUsers(); // getDefaultUsers now includes totalSteps: 0
          Object.keys(users).forEach(username => {
-             // Calculate initial levels using NEW logic
-             if (typeof getLevelFromTotalXP === 'function') { // Use new function name
+             if (typeof getLevelFromTotalXP === 'function') {
                 users[username].level = getLevelFromTotalXP(users[username].xp || 0);
              } else {
                  console.warn("loadDefaultUsersLocally: getLevelFromTotalXP not found. Setting level to 0.");
@@ -377,14 +394,15 @@ function loadDefaultUsersLocally() {
 
 /**
  * Helper function to generate the default user structure.
+ * ** Includes default totalSteps **
  */
  function getDefaultUsers() {
-     const defaultUserStructure = { xp: 0, level: 0, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: new Set(), timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
+     // Default structure now includes totalSteps: 0
+     const defaultUserStructure = { xp: 0, level: 0, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, totalSteps: 0, /* NEW */ themesTried: new Set(), timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
      const createUser = (theme) => {
          const user = JSON.parse(JSON.stringify(defaultUserStructure));
          user.theme = theme;
          user.stats.themesTried = new Set([theme]);
-         // Level is already 0 in default structure
          return user;
      };
      return {
@@ -441,7 +459,7 @@ function initializeAppUI() {
     } else { console.warn("initializeAppUI: populateAdminUserSelect function not found."); }
 
     if (userListDisplay) renderUserList(); else console.error("initializeAppUI: userListDisplay not found");
-    if (scoreboardList) renderScoreboard(); else console.error("initializeAppUI: scoreboardList not found");
+    if (scoreboardList || scoreboardStepsList) renderScoreboard(); else console.error("initializeAppUI: scoreboardList or scoreboardStepsList not found"); // Update check
 
     if (currentUser && users[currentUser]) {
         console.log(`initializeAppUI: Rendering user-specific elements for ${currentUser}`);
@@ -613,7 +631,7 @@ function processLoginLogoutUIUpdate() {
             renderAchievements();
         } else { console.warn("processLoginLogoutUIUpdate: renderAchievements function not found."); }
         renderUserList(); // Updates user list using NEW XP logic
-        renderScoreboard(); // Updates scoreboard using NEW XP logic
+        renderScoreboard(); // Updates scoreboard using NEW XP logic (and steps)
         toggleNikkoButton(currentUser === "Nikko");
 
         // *** Render graphs if the relevant view is currently active ***
@@ -633,7 +651,7 @@ function processLoginLogoutUIUpdate() {
         if (logEntriesContainer) logEntriesContainer.innerHTML = '<p class="italic">Logg inn for å se loggen.</p>';
         if (achievementsListContainer) achievementsListContainer.innerHTML = '<p class="italic">Logg inn for å se achievements.</p>';
         renderUserList(); // Still render lists even when logged out
-        renderScoreboard(); // Still render lists even when logged out
+        renderScoreboard(); // Still render lists even when logged out (will show empty steps list)
         toggleNikkoButton(false);
     }
 
@@ -755,6 +773,7 @@ function clearUserProfileUI() {
 
 /**
  * Renders the list of activities added during the current workout session.
+ * ** Updated to display steps. **
  */
 function renderCurrentSession() {
      if (!currentSessionList) return;
@@ -766,6 +785,7 @@ function renderCurrentSession() {
     currentSessionList.innerHTML = currentWorkout.map(item => {
         let details = '';
         if (item.type === 'Gåtur') { details = `${item.km} km`; }
+        else if (item.type === 'Skritt') { details = `${item.steps.toLocaleString('no-NO')} skritt`; } // NEW: Display steps
         else { details = `${item.kilos}kg x ${item.reps} reps x ${item.sets} sett`; }
         const moodEmojis = { great: '😃', good: '😊', ok: '😐', meh: '😕', bad: '😩' };
         const moodEmoji = moodEmojis[item.mood] || '';
@@ -777,6 +797,7 @@ function renderCurrentSession() {
 /**
  * Handles the completion of a workout session.
  * ** Adds entryId and uses the NEW getLevelFromTotalXP function. **
+ * ** Adds totalSteps calculation and saving. **
  */
 function completeWorkout() {
     if (currentWorkout.length === 0 || !currentUser || !users[currentUser]) {
@@ -799,8 +820,9 @@ function completeWorkout() {
     const userData = users[currentUser];
     const userDataRef = usersRef.child(currentUser);
     const sessionXP = currentWorkout.reduce((sum, ex) => sum + (ex.xp || 0), 0);
-    const sessionVol = currentWorkout.reduce((sum, ex) => sum + (ex.type !== 'Gåtur' ? ((ex.kilos || 0) * (ex.reps || 0) * (ex.sets || 0)) : 0), 0);
+    const sessionVol = currentWorkout.reduce((sum, ex) => sum + (ex.type !== 'Gåtur' && ex.type !== 'Skritt' ? ((ex.kilos || 0) * (ex.reps || 0) * (ex.sets || 0)) : 0), 0); // Exclude Skritt from volume
     const sessionKm = currentWorkout.reduce((sum, ex) => sum + (ex.type === 'Gåtur' ? (ex.km || 0) : 0), 0);
+    const sessionSteps = currentWorkout.reduce((sum, ex) => sum + (ex.type === 'Skritt' ? (ex.steps || 0) : 0), 0); // NEW: Calculate session steps
     const sessionMood = currentWorkout.length > 0 ? currentWorkout[currentWorkout.length - 1].mood : 'good';
     const today = new Date().toISOString().split('T')[0];
     let streak = userData.streak || 0;
@@ -829,6 +851,7 @@ function completeWorkout() {
         baseXP: sessionXP,
         totalVolume: sessionVol,
         totalKm: sessionKm,
+        totalSteps: sessionSteps, // NEW: Save session steps
         mood: sessionMood,
         streakBonus: streakBonusText,
         streakDays: streak
@@ -842,10 +865,13 @@ function completeWorkout() {
     userData.xp = newTotalXP;
     userData.lastWorkoutDate = today;
     userData.streak = streak;
-    if (!userData.stats) userData.stats = { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: new Set(), timesSnooped: 0, lastMood: null };
+    // Ensure stats object and totalSteps exist before incrementing
+    if (!userData.stats) userData.stats = { totalWorkouts: 0, totalKm: 0, totalVolume: 0, totalSteps: 0, themesTried: new Set(), timesSnooped: 0, lastMood: null };
+    if (typeof userData.stats.totalSteps !== 'number') userData.stats.totalSteps = 0; // Ensure it's a number
     userData.stats.totalWorkouts = (userData.stats.totalWorkouts || 0) + 1;
     userData.stats.totalKm = (userData.stats.totalKm || 0) + sessionKm;
     userData.stats.totalVolume = (userData.stats.totalVolume || 0) + sessionVol;
+    userData.stats.totalSteps = userData.stats.totalSteps + sessionSteps; // NEW: Add session steps to total
     userData.stats.lastMood = sessionMood;
 
     // *** Use NEW function to calculate level ***
@@ -886,6 +912,7 @@ function completeWorkout() {
 /**
  * Renders the user's workout log entries.
  * ** Adds Delete button for entries within 48 hours. **
+ * ** Displays steps if logged. **
  */
 function renderLog() {
     if (!logEntriesContainer) { console.error("renderLog: Log container not found."); return; }
@@ -911,6 +938,7 @@ function renderLog() {
         const exercisesHtml = entry.exercises.map(ex => {
             let details = '';
             if (ex.type === 'Gåtur') { details = `${ex.km} km`; }
+            else if (ex.type === 'Skritt') { details = `${(ex.steps || 0).toLocaleString('no-NO')} skritt`; } // NEW: Display steps
             else { details = `${ex.kilos || 0}kg x ${ex.reps || 0}r x ${ex.sets || 0}s`; }
              const moodEmojis = { great: '😃', good: '😊', ok: '😐', meh: '😕', bad: '😩' };
              const moodEmoji = moodEmojis[ex.mood] || '';
@@ -1145,23 +1173,80 @@ function checkAndShowSnoopNotification() {
 // --- Scoreboard ---
 
 /**
- * Renders the weekly XP scoreboard.
+ * Renders the weekly XP and Steps scoreboards.
  * ** Uses the NEW getLevelFromTotalXP function. **
+ * ** Calculates and renders weekly steps. **
  */
 function renderScoreboard() {
-    // ... (Keep existing logic, but ensure it uses getLevelFromTotalXP) ...
-     if (!scoreboardList) { console.error("renderScoreboard: Scoreboard list element not found."); return; }
-    console.log("Rendering scoreboard...");
-    if (!users || Object.keys(users).length === 0) { scoreboardList.innerHTML = '<li class="italic">Laster scoreboard...</li>'; return; }
-     if (typeof getLevelFromTotalXP !== 'function') { console.error("renderScoreboard: Missing required function getLevelFromTotalXP."); scoreboardList.innerHTML = '<li class="italic">Feil ved lasting av scoreboard.</li>'; return; }
-    const now = new Date(); const dayOfWeek = now.getDay(); const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); const startOfWeek = new Date(now.setDate(diff)); startOfWeek.setHours(0, 0, 0, 0); const startOfWeekISO = startOfWeek.toISOString().split('T')[0];
-    const weeklyXP = Object.entries(users).map(([username, userData]) => {
-        let xp = 0; if (Array.isArray(userData.log)) { userData.log.forEach(entry => { if (entry.isoDate && entry.isoDate >= startOfWeekISO) { xp += entry.totalXP || 0; } }); }
-        const level = getLevelFromTotalXP(userData.xp || 0); // Use new function
-        return { username, weeklyXP: xp, level: level };
+    if (!scoreboardList || !scoreboardStepsList) { // Check for both lists
+        console.error("renderScoreboard: Scoreboard list elements (XP or Steps) not found.");
+        return;
+    }
+    console.log("Rendering scoreboards (XP and Steps)...");
+
+    if (!users || Object.keys(users).length === 0) {
+        scoreboardList.innerHTML = '<li class="italic">Laster XP-scoreboard...</li>';
+        scoreboardStepsList.innerHTML = '<li class="italic">Laster skritt-scoreboard...</li>';
+        return;
+    }
+    if (typeof getLevelFromTotalXP !== 'function') {
+        console.error("renderScoreboard: Missing required function getLevelFromTotalXP.");
+        scoreboardList.innerHTML = '<li class="italic">Feil ved lasting av XP-scoreboard.</li>';
+        scoreboardStepsList.innerHTML = '<li class="italic">Feil ved lasting av skritt-scoreboard.</li>';
+        return;
+    }
+
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 for Sunday, 1 for Monday, etc.
+    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to get Monday
+    const startOfWeek = new Date(now.setDate(diff));
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfWeekISO = startOfWeek.toISOString().split('T')[0];
+
+    const weeklyStats = Object.entries(users).map(([username, userData]) => {
+        let weeklyXP = 0;
+        let weeklySteps = 0; // NEW: Initialize weekly steps
+        if (Array.isArray(userData.log)) {
+            userData.log.forEach(entry => {
+                if (entry.isoDate && entry.isoDate >= startOfWeekISO) {
+                    weeklyXP += entry.totalXP || 0;
+                    // NEW: Sum steps from log entries
+                    if (Array.isArray(entry.exercises)) {
+                        entry.exercises.forEach(ex => {
+                            if (ex.type === 'Skritt') {
+                                weeklySteps += ex.steps || 0;
+                            }
+                        });
+                    }
+                     // Compatibility: Sum steps from older top-level entry if needed
+                     if (entry.totalSteps && !entry.exercises?.some(ex => ex.type === 'Skritt')) {
+                        weeklySteps += entry.totalSteps;
+                     }
+                }
+            });
+        }
+        const level = getLevelFromTotalXP(userData.xp || 0);
+        return { username, weeklyXP, weeklySteps, level }; // Include weeklySteps
     });
-    weeklyXP.sort((a, b) => b.weeklyXP - a.weeklyXP);
-    scoreboardList.innerHTML = weeklyXP.map((data, index) => { return `<li class="py-1"><span class="font-semibold">${index + 1}. ${data.username}</span> - ${data.weeklyXP.toLocaleString('no-NO')} XP denne uken (Nivå ${data.level})</li>`; }).join('');
+
+    // Render XP Scoreboard
+    const sortedByXP = [...weeklyStats].sort((a, b) => b.weeklyXP - a.weeklyXP);
+    scoreboardList.innerHTML = sortedByXP.map((data, index) => {
+        return `<li class="py-1"><span class="font-semibold">${index + 1}. ${data.username}</span> - ${data.weeklyXP.toLocaleString('no-NO')} XP denne uken (Nivå ${data.level})</li>`;
+    }).join('');
+
+    // Render Steps Scoreboard
+    const sortedBySteps = [...weeklyStats].sort((a, b) => b.weeklySteps - a.weeklySteps);
+    scoreboardStepsList.innerHTML = sortedBySteps.map((data, index) => {
+         // Only show users with steps > 0 for cleaner list? Optional.
+         // if (data.weeklySteps <= 0) return '';
+        return `<li class="py-1"><span class="font-semibold">${index + 1}. ${data.username}</span> - ${data.weeklySteps.toLocaleString('no-NO')} skritt denne uken</li>`;
+    }).join('');
+
+    // If no one logged steps, display a message
+    if (scoreboardStepsList.innerHTML.trim() === '') {
+        scoreboardStepsList.innerHTML = '<li class="italic">Ingen skritt logget denne uken.</li>';
+    }
 }
 
 
@@ -1355,8 +1440,9 @@ function displayDataActionMessage(message, success = true) { /* ... (Keep existi
 function exportUserData() { /* ... (Keep existing logic) ... */ playButtonClickSound(); if (!users || Object.keys(users).length === 0) { displayDataActionMessage("Ingen data å eksportere.", false); return; } if (currentUser && users[currentUser]?.stats) { users[currentUser].stats.exportedData = true; checkAchievements(currentUser); if (firebaseInitialized && usersRef) { usersRef.child(currentUser).child('stats/exportedData').set(true).catch(err => console.error("Failed to update exportedData flag in RTDB", err)); } } try { const dataToExport = JSON.parse(JSON.stringify(users)); Object.values(dataToExport).forEach(user => { if (user.stats?.themesTried instanceof Set) { user.stats.themesTried = Array.from(user.stats.themesTried); } else if (!Array.isArray(user.stats?.themesTried)) { user.stats.themesTried = []; } if (!Array.isArray(user.log)) user.log = []; if (!Array.isArray(user.achievements)) user.achievements = []; }); const dataStr = JSON.stringify(dataToExport, null, 2); const blob = new Blob([dataStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `fit_g4fl_data_${new Date().toISOString().split('T')[0]}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); displayDataActionMessage("Data eksportert!", true); } catch (error) { console.error("Export error:", error); displayDataActionMessage("Eksportfeil!", false); alert(`Eksportfeil: ${error.message}`); } }
 /**
  * Handles the file selection for data import.
+ * ** Includes migration for totalSteps **
  */
-function handleDataImport(event) { /* ... (Keep existing implementation) ... */
+function handleDataImport(event) {
     const file = event.target.files[0];
     if (!file) return;
     if (!firebaseInitialized || !usersRef) {
@@ -1378,12 +1464,16 @@ function handleDataImport(event) { /* ... (Keep existing implementation) ... */
             console.log("Validating and preparing imported data...");
             const dataToImport = JSON.parse(JSON.stringify(importedData));
             Object.entries(dataToImport).forEach(([username, user]) => {
-                const defaultUserStructure = { xp: 0, level: 1, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, themesTried: [], timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
+                // Ensure base structure and stats object, including totalSteps
+                const defaultUserStructure = { xp: 0, level: 0, log: [], theme: 'klinkekule', lastWorkoutDate: null, streak: 0, snooped: false, lastLogin: null, achievements: [], stats: { totalWorkouts: 0, totalKm: 0, totalVolume: 0, totalSteps: 0, themesTried: [], timesSnooped: 0, lastMood: null, importedData: false, exportedData: false } };
                 dataToImport[username] = { ...defaultUserStructure, ...user };
                 dataToImport[username].stats = { ...defaultUserStructure.stats, ...(user.stats || {}) };
+                // Ensure specific fields are correct type
                 if (!Array.isArray(dataToImport[username].stats.themesTried)) dataToImport[username].stats.themesTried = [];
                 if (!Array.isArray(dataToImport[username].log)) dataToImport[username].log = [];
                 if (!Array.isArray(dataToImport[username].achievements)) dataToImport[username].achievements = [];
+                if (typeof dataToImport[username].stats.totalSteps !== 'number') dataToImport[username].stats.totalSteps = 0; // Ensure totalSteps is number
+                // Recalculate level based on imported XP
                 dataToImport[username].level = getLevelFromTotalXP(dataToImport[username].xp || 0);
             });
             usersRef.set(dataToImport)
@@ -1447,6 +1537,8 @@ function toggleNikkoButton(show) { /* ... (Keep existing logic) ... */ if (nikko
 /**
  * Attaches all necessary event listeners to DOM elements.
  * ** Includes listener for NEW log delete buttons. **
+ * ** Updated listener for exercise type select to handle Skritt. **
+ * ** Updated listener for workout form submit to handle Skritt. **
  */
 function setupBaseEventListeners() {
     console.log("Setting up base event listeners...");
@@ -1472,11 +1564,119 @@ function setupBaseEventListeners() {
     else { console.error("Logout button element NOT FOUND!"); }
 
     // --- Workout Form: Exercise Type Change ---
-    if (exerciseTypeSelect) { exerciseTypeSelect.addEventListener('change', () => { const type = exerciseTypeSelect.value; if (kgField) kgField.classList.toggle('active', type !== 'Gåtur'); if (repsField) repsField.classList.toggle('active', type !== 'Gåtur'); if (setsField) setsField.classList.toggle('active', type !== 'Gåtur'); if (kmField) kmField.classList.toggle('active', type === 'Gåtur'); if (customExerciseNameField) customExerciseNameField.style.display = (type === 'Annet') ? 'block' : 'none'; const kilosEl = kgField?.querySelector('input'); const repsEl = repsField?.querySelector('input'); const setsEl = setsField?.querySelector('input'); const kmEl = kmField?.querySelector('input'); if (kilosEl) kilosEl.required = (type !== 'Gåtur'); if(repsEl) repsEl.required = (type !== 'Gåtur'); if(setsEl) setsEl.required = (type !== 'Gåtur'); if(kmEl) kmEl.required = (type === 'Gåtur'); if(customExerciseInput) customExerciseInput.required = (type === 'Annet'); }); }
+    if (exerciseTypeSelect) {
+        exerciseTypeSelect.addEventListener('change', () => {
+            const type = exerciseTypeSelect.value;
+            const isWalk = type === 'Gåtur';
+            const isSteps = type === 'Skritt'; // NEW check
+            const isOther = type === 'Annet';
+            const isLift = !isWalk && !isSteps && !isOther; // Assumes anything else is lifting
+
+            // Toggle field visibility
+            if (kgField) kgField.classList.toggle('active', isLift || isOther);
+            if (repsField) repsField.classList.toggle('active', isLift || isOther);
+            if (setsField) setsField.classList.toggle('active', isLift || isOther);
+            if (kmField) kmField.classList.toggle('active', isWalk);
+            if (skrittField) skrittField.classList.toggle('active', isSteps); // NEW toggle
+            if (customExerciseNameField) customExerciseNameField.style.display = isOther ? 'block' : 'none';
+
+            // Set required attributes
+            const kilosEl = kgField?.querySelector('input');
+            const repsEl = repsField?.querySelector('input');
+            const setsEl = setsField?.querySelector('input');
+            const kmEl = kmField?.querySelector('input');
+            const skrittEl = skrittField?.querySelector('input'); // NEW get steps input
+            const customNameEl = customExerciseInput;
+
+            if (kilosEl) kilosEl.required = (isLift || isOther);
+            if (repsEl) repsEl.required = (isLift || isOther);
+            if (setsEl) setsEl.required = (isLift || isOther);
+            if (kmEl) kmEl.required = isWalk;
+            if (skrittEl) skrittEl.required = isSteps; // NEW set required
+            if (customNameEl) customNameEl.required = isOther;
+        });
+         // Trigger change once initially to set correct fields for default selection
+         exerciseTypeSelect.dispatchEvent(new Event('change'));
+    }
     else { console.error("Exercise Type Select element NOT FOUND!"); }
 
     // --- Workout Form: Submit (Add Activity) ---
-    if (workoutForm) { workoutForm.addEventListener('submit', (e) => { e.preventDefault(); if (!currentUser) { alert("Logg inn først for å legge til aktivitet."); return; } playButtonClickSound(); const type = exerciseTypeSelect?.value; let name = type === 'Annet' ? customExerciseInput?.value.trim() : type; let kilos = 0, reps = 0, sets = 0, km = 0, baseXp = 0, finalXp = 0; let comment = workoutCommentInput?.value.trim() || ''; let mood = document.querySelector('input[name="mood"]:checked')?.value || 'good'; let data = { type, comment, mood }; let isValid = true; let cheatMessage = null; if (type === 'Gåtur') { const kmInput = kmField?.querySelector('input'); km = parseFloat(kmInput?.value); if (isNaN(km) || km <= 0) { alert("Ugyldig verdi for kilometer."); isValid = false; } else if (km > MAX_KM_WALK) { cheatMessage = `Nå jukser du vel litt? ${MAX_KM_WALK} km er maks per gåtur-logg.`; isValid = false; } if(isValid) { baseXp = calculateWalkXP(km); data = { ...data, name: `Gåtur ${km} km`, km }; } } else if (type === 'Annet' || type) { const kgInput = kgField?.querySelector('input'); const repsInput = repsField?.querySelector('input'); const setsInput = setsField?.querySelector('input'); kilos = parseFloat(kgInput?.value); reps = parseInt(repsInput?.value, 10); sets = parseInt(setsInput?.value, 10); if (type === 'Annet' && !name) { alert("Skriv inn navn på 'Annet'-øvelse."); isValid = false; } else if (isNaN(kilos) || isNaN(reps) || isNaN(sets) || kilos < 0 || reps < 1 || sets < 1) { alert("Ugyldige verdier for kg/reps/sets."); isValid = false; } else { if (kilos > MAX_WEIGHT_KG) { cheatMessage = `Nå jukser du! ${MAX_WEIGHT_KG} kg er maks vekt per logg.`; isValid = false; } if (reps > MAX_REPS) { cheatMessage = `Nå jukser du! ${MAX_REPS} reps er maks per logg.`; isValid = false; } } if(isValid) { baseXp = calculateLiftXP(kilos, reps, sets); data = { ...data, name, kilos, reps, sets }; } } else { alert("Velg en aktivitetstype."); isValid = false; } if (cheatMessage) { alert(cheatMessage); showNotification(cheatMessage); isValid = false; } if (isValid) { finalXp = adjustXPForMood(baseXp, mood); data.xp = finalXp; currentWorkout.push(data); renderCurrentSession(); workoutForm.reset(); const moodGood = document.getElementById('mood-good'); if (moodGood) moodGood.checked = true; if (exerciseTypeSelect) exerciseTypeSelect.dispatchEvent(new Event('change')); updateMascot(`La til ${data.name}! Fortsett sånn!`); } }); }
+    if (workoutForm) {
+        workoutForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!currentUser) { alert("Logg inn først for å legge til aktivitet."); return; }
+            playButtonClickSound();
+
+            const type = exerciseTypeSelect?.value;
+            let name = type === 'Annet' ? customExerciseInput?.value.trim() : type;
+            let kilos = 0, reps = 0, sets = 0, km = 0, steps = 0; // Add steps variable
+            let baseXp = 0, finalXp = 0;
+            let comment = workoutCommentInput?.value.trim() || '';
+            let mood = document.querySelector('input[name="mood"]:checked')?.value || 'good';
+            let data = { type, comment, mood };
+            let isValid = true;
+            let cheatMessage = null;
+
+            // Clear previous error styling or messages if any
+            // (Add logic here if you have specific error display elements)
+
+            if (type === 'Gåtur') {
+                const kmInput = kmField?.querySelector('input');
+                km = parseFloat(kmInput?.value);
+                if (isNaN(km) || km <= 0) { alert("Ugyldig verdi for kilometer."); isValid = false; }
+                else if (km > MAX_KM_WALK) { cheatMessage = `Nå jukser du vel litt? ${MAX_KM_WALK} km er maks per gåtur-logg.`; isValid = false; }
+                if(isValid) {
+                    baseXp = calculateWalkXP(km); // Use function from Script Level names
+                    data = { ...data, name: `Gåtur ${km} km`, km };
+                }
+            } else if (type === 'Skritt') { // NEW: Handle Steps
+                const skrittInput = skrittField?.querySelector('input');
+                steps = parseInt(skrittInput?.value, 10);
+                if (isNaN(steps) || steps < 1) { alert("Ugyldig verdi for skritt (må være minst 1)."); isValid = false; }
+                else if (steps > MAX_STEPS) { cheatMessage = `Nå jukser du vel litt? ${MAX_STEPS.toLocaleString('no-NO')} skritt er maks per logg.`; isValid = false; }
+                if(isValid) {
+                    baseXp = calculateStepsXP(steps); // Use function from Script Level names
+                    data = { ...data, name: `${steps.toLocaleString('no-NO')} Skritt`, steps };
+                }
+            } else if (type === 'Annet' || type) { // Handle Lifting and Other
+                const kgInput = kgField?.querySelector('input');
+                const repsInput = repsField?.querySelector('input');
+                const setsInput = setsField?.querySelector('input');
+                kilos = parseFloat(kgInput?.value);
+                reps = parseInt(repsInput?.value, 10);
+                sets = parseInt(setsInput?.value, 10);
+
+                if (type === 'Annet' && !name) { alert("Skriv inn navn på 'Annet'-øvelse."); isValid = false; }
+                else if (isNaN(kilos) || isNaN(reps) || isNaN(sets) || kilos < 0 || reps < 1 || sets < 1) { alert("Ugyldige verdier for kg/reps/sets."); isValid = false; }
+                else {
+                    if (kilos > MAX_WEIGHT_KG) { cheatMessage = `Nå jukser du! ${MAX_WEIGHT_KG} kg er maks vekt per logg.`; isValid = false; }
+                    if (reps > MAX_REPS) { cheatMessage = `Nå jukser du! ${MAX_REPS} reps er maks per logg.`; isValid = false; }
+                }
+                if(isValid) {
+                    baseXp = calculateLiftXP(kilos, reps, sets); // Use function from Script Level names
+                    data = { ...data, name, kilos, reps, sets };
+                }
+            } else {
+                alert("Velg en aktivitetstype."); isValid = false;
+            }
+
+            if (cheatMessage) { alert(cheatMessage); showNotification(cheatMessage); isValid = false; }
+
+            if (isValid) {
+                finalXp = adjustXPForMood(baseXp, mood); // Use function from Script Level names
+                data.xp = finalXp;
+                currentWorkout.push(data);
+                renderCurrentSession();
+                workoutForm.reset();
+                // Reset mood selector to default ('good')
+                const moodGood = document.getElementById('mood-good');
+                if (moodGood) moodGood.checked = true;
+                // Trigger change event on select to reset visible fields
+                if (exerciseTypeSelect) exerciseTypeSelect.dispatchEvent(new Event('change'));
+                updateMascot(`La til ${data.name}! Fortsett sånn!`);
+            }
+        });
+    }
     else { console.error("Workout Form element NOT FOUND!"); }
 
     // --- Complete Workout Button ---
