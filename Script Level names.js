@@ -1,9 +1,9 @@
 // === Script Level names.js ===
 // Contains constants, configuration, and XP/Level calculation logic.
-// Updated with new XP progression logic and new achievements (utfordringer).
-// Restored content for dailyTips and motivationMessages.
+// Updated with new XP progression logic and many new achievements.
+// Added XP_PER_STEP constant.
 
-console.log("Script Level names.js loaded: Constants, NEW XP functions, and restored tips/messages defined.");
+console.log("Script Level names.js loaded: Constants, NEW XP functions, MORE achievements, and XP_PER_STEP defined.");
 
 // --- CONFIGURATION & CONSTANTS ---
 
@@ -250,30 +250,101 @@ const achievementList = [
     { id: 'warzone_gulag_winner', name: 'Gulag Vinner', description: 'Kom tilbake etter en hviledag og logget en økt.', criteria: (user) => user.log?.length > 1 && user.streak === 1 },
     { id: 'ark_rex_strength', name: 'Sterk som en Rex', description: 'Løftet over 100 tonn totalt.', criteria: (user) => user.stats?.totalVolume >= 100000 },
 
-    // --- NEW Achievements (15 Individual + 3 Group Placeholders) ---
+    // --- NEW Achievements (Added more) ---
     // Level Milestones
+    { id: 'lvl75', name: 'Nivå 75!', description: 'Tre fjerdedeler til hundre!', criteria: (user) => user.level >= 75 },
     { id: 'lvl100', name: 'Nivå 100!', description: 'Tresifret! Nå snakker vi!', criteria: (user) => user.level >= 100 },
+    { id: 'lvl125', name: 'Nivå 125!', description: 'Solid innsats!', criteria: (user) => user.level >= 125 },
     { id: 'lvl150', name: 'Nivå 150!', description: 'Godt over middels!', criteria: (user) => user.level >= 150 },
+    { id: 'lvl175', name: 'Nivå 175!', description: 'Nærmer seg 200!', criteria: (user) => user.level >= 175 },
     { id: 'lvl200', name: 'Nivå 200!', description: 'Dobbelt så rått som 100!', criteria: (user) => user.level >= 200 },
     { id: 'lvl250', name: 'Nivå 250!', description: 'Halvveis til MAX!', criteria: (user) => user.level >= 250 },
     { id: 'lvl300', name: 'Nivå 300!', description: 'Legendarisk status nærmer seg.', criteria: (user) => user.level >= 300 },
+    { id: 'lvl350', name: 'Nivå 350!', description: 'Veteran!', criteria: (user) => user.level >= 350 },
     { id: 'lvl400', name: 'Nivå 400!', description: 'Du er en maskin!', criteria: (user) => user.level >= 400 },
+    { id: 'lvl450', name: 'Nivå 450!', description: 'Nesten i mål!', criteria: (user) => user.level >= 450 },
     { id: 'lvl500', name: 'Nivå 500! MAX LEVEL!', description: 'Du har rundet spillet! Overpowered!', criteria: (user) => user.level >= 500 },
+
     // Streak Milestones
     { id: 'streak14', name: 'To Ukers Streak!', description: 'Logget økter 14 dager på rad.', criteria: (user) => user.streak >= 14 },
     { id: 'streak30', name: 'Måneds-Streak!', description: 'Logget økter 30 dager på rad.', criteria: (user) => user.streak >= 30 },
     { id: 'streak60', name: 'To Måneders Streak!', description: 'Logget økter 60 dager på rad. Imponerende!', criteria: (user) => user.streak >= 60 },
+    { id: 'streak100', name: '100 Dagers Streak!', description: 'Logget økter 100 dager på rad! Vanvittig!', criteria: (user) => user.streak >= 100 },
+
     // Total Volume Milestones
+    { id: 'lift25ton', name: 'Løftet 25 Tonn', description: 'Du har løftet 25 000 kg totalt!', criteria: (user) => user.stats?.totalVolume >= 25000 },
     { id: 'lift250ton', name: 'Løftet 250 Tonn', description: 'Du har løftet kvart million kg totalt!', criteria: (user) => user.stats?.totalVolume >= 250000 },
     { id: 'lift500ton', name: 'Løftet 500 Tonn', description: 'Halv million kg! Sterkt!', criteria: (user) => user.stats?.totalVolume >= 500000 },
+    { id: 'lift1Mton', name: 'Løftet 1 Million kg!', description: 'Du har løftet EN MILLION KILO totalt!', criteria: (user) => user.stats?.totalVolume >= 1000000 },
+
     // Total Distance Milestones
+    { id: 'walk50k', name: 'Gått 50 km', description: 'Du har gått 50 km totalt.', criteria: (user) => user.stats?.totalKm >= 50 },
     { id: 'walk100k', name: 'Gått 100 km', description: 'Du har gått 100 km totalt. Det er langt!', criteria: (user) => user.stats?.totalKm >= 100 },
+    { id: 'walk250k', name: 'Gått 250 km', description: 'Du har gått 250 km totalt.', criteria: (user) => user.stats?.totalKm >= 250 },
     { id: 'walk500k', name: 'Gått 500 km', description: 'Du har gått 500 km totalt. Nesten Frøya rundt!', criteria: (user) => user.stats?.totalKm >= 500 },
-    // Feature Usage
+    { id: 'walk1000k', name: 'Gått 1000 km', description: 'Du har gått 1000 km totalt! Imponerende!', criteria: (user) => user.stats?.totalKm >= 1000 },
+
+    // Total Steps Milestones (Requires user.stats.totalSteps to be tracked)
+    { id: 'steps100k', name: '100 000 Skritt', description: 'Du har logget 100 000 skritt totalt.', criteria: (user) => user.stats?.totalSteps >= 100000 },
+    { id: 'steps500k', name: 'Halv Million Skritt', description: 'Du har logget 500 000 skritt totalt.', criteria: (user) => user.stats?.totalSteps >= 500000 },
+    { id: 'steps1M', name: 'En Million Skritt!', description: 'Du har logget EN MILLION skritt totalt!', criteria: (user) => user.stats?.totalSteps >= 1000000 },
+
+    // Feature Usage & Consistency
     { id: 'theme_master', name: 'Tema-Mester', description: 'Du har prøvd alle tilgjengelige temaer!', criteria: (user) => {
         const availableThemes = ['kennyball', 'nikko', 'klinkekule', 'helgrim', 'krrroppekatt', 'beerbjorn', 'dardna', 'skytebasen'];
         return user.stats?.themesTried instanceof Set && availableThemes.every(theme => user.stats.themesTried.has(theme));
     }},
+    { id: 'log_5_types', name: 'Variasjonens Mester', description: 'Logget minst 5 forskjellige typer aktiviteter (ikke Gåtur/Skritt).', criteria: (user) => {
+        if (!user.log || user.log.length === 0) return false;
+        const types = new Set();
+        user.log.forEach(entry => {
+            if (entry.exercises && Array.isArray(entry.exercises)) {
+                entry.exercises.forEach(ex => {
+                    if (ex.type !== 'Gåtur' && ex.type !== 'Skritt') {
+                        types.add(ex.type === 'Annet' ? ex.name : ex.type); // Use specific name for 'Annet'
+                    }
+                });
+            }
+        });
+        return types.size >= 5;
+    }},
+    { id: 'early_bird', name: 'Morgenfugl', description: 'Logget en økt før kl. 07:00.', criteria: (user) => {
+        if (!user.log) return false;
+        return user.log.some(entry => {
+            try {
+                // Extract time from 'date' string (e.g., "21.04.2025, 06:30")
+                const timePart = entry.date?.split(', ')[1];
+                if (!timePart) return false;
+                const hour = parseInt(timePart.split(':')[0], 10);
+                return hour >= 0 && hour < 7;
+            } catch { return false; }
+        });
+    }},
+    { id: 'night_owl', name: 'Nattugle', description: 'Logget en økt etter midnatt (mellom 00:00 og 04:00).', criteria: (user) => {
+        if (!user.log) return false;
+        return user.log.some(entry => {
+             try {
+                const timePart = entry.date?.split(', ')[1];
+                if (!timePart) return false;
+                const hour = parseInt(timePart.split(':')[0], 10);
+                return hour >= 0 && hour < 4;
+            } catch { return false; }
+        });
+    }},
+    { id: 'mood_master_great', name: 'Alltid Blid!', description: 'Logget 10 økter med "Lett"-humør.', criteria: (user) => {
+        if (!user.log) return false;
+        let count = 0;
+        user.log.forEach(entry => { if (entry.mood === 'great') count++; });
+        return count >= 10;
+    }},
+     { id: 'mood_master_bad', name: 'Smerte Er Midlertidig', description: 'Logget 5 økter med "Blytungt!"-humør.', criteria: (user) => {
+        if (!user.log) return false;
+        let count = 0;
+        user.log.forEach(entry => { if (entry.mood === 'bad') count++; });
+        return count >= 5;
+    }},
+    { id: 'unlock_10_ach', name: 'Achievement Jeger', description: 'Låst opp 10 andre achievements.', criteria: (user) => user.achievements?.length >= 10 }, // Simple count
+    { id: 'unlock_25_ach', name: 'Achievement Samler', description: 'Låst opp 25 andre achievements.', criteria: (user) => user.achievements?.length >= 25 },
 
     // --- Group Achievement Placeholders (Logic TBD) ---
     { id: 'group_lift_elephant', name: 'Felles Løft: 1 Elefant!', description: 'Gjengen har samlet løftet 5 000 000 kg (5000 Tonn)!', criteria: (usersData) => false }, // Placeholder
@@ -281,11 +352,15 @@ const achievementList = [
     { id: 'group_all_lvl_50', name: 'Alle Over Nivå 50!', description: 'Alle aktive brukere i gjengen har nådd nivå 50!', criteria: (usersData) => false }, // Placeholder
 ];
 
-// --- BASE XP CALCULATION (Unchanged) ---
+// --- BASE XP CALCULATION ---
 
 const XP_PER_KM = 50;
+const XP_PER_STEP = 1 / 80; // Approx 0.0125 XP per step (gives 100 XP for 8000 steps)
+
 function calculateLiftXP(kilos, reps, sets) { const validKilos = Math.max(0, Number(kilos) || 0); const validReps = Math.max(1, Number(reps) || 1); const validSets = Math.max(1, Number(sets) || 1); return Math.round((validKilos * validReps * validSets) / 10); }
 function calculateWalkXP(km) { const validKm = Math.max(0, Number(km) || 0); return Math.round(validKm * XP_PER_KM); }
+function calculateStepsXP(steps) { const validSteps = Math.max(0, Number(steps) || 0); return Math.round(validSteps * XP_PER_STEP); } // NEW function for steps
+
 function adjustXPForMood(baseXP, mood) { const multipliers = { great: 0.9, good: 1.0, ok: 1.05, meh: 1.1, bad: 1.2 }; const multiplier = multipliers[mood] || 1.0; return Math.max(1, Math.round(baseXP * multiplier)); }
 
 
@@ -348,5 +423,5 @@ function getLevelFromTotalXP(totalXP) {
 }
 
 
-console.log("Script Level names.js: NEW XP functions and NEW achievements added.");
+console.log("Script Level names.js: NEW XP functions and MORE achievements added.");
 
