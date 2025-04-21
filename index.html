@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fit G4FL - Prototype v3.11 (Scoreboard Graph UI)</title> <script src="https://cdn.tailwindcss.com"></script>
+    <title>Fit G4FL - Prototype v3.12 (Skritt UI)</title> <script src="https://cdn.tailwindcss.com"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -67,8 +67,8 @@
         .level-emoji { font-size: 1.2em; margin-left: 0.25rem; display: inline-block; }
 
         /* Workout Form Field Visibility */
-        .form-field-kg, .form-field-reps, .form-field-sets, .form-field-km { display: none; }
-        .form-field-kg.active, .form-field-reps.active, .form-field-sets.active, .form-field-km.active { display: block; animation: fadeIn 0.3s ease-out; }
+        .form-field-kg, .form-field-reps, .form-field-sets, .form-field-km, .form-field-skritt { display: none; } /* Added skritt */
+        .form-field-kg.active, .form-field-reps.active, .form-field-sets.active, .form-field-km.active, .form-field-skritt.active { display: block; animation: fadeIn 0.3s ease-out; } /* Added skritt */
 
         /* Snoop Modal Styling */
         .snoop-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); display: flex; justify-content: center; align-items: center; z-index: 1001; padding: 1rem; opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out; }
@@ -237,7 +237,7 @@
                                     <option value="Hip thrust">Hip thrust</option>
                                     <option value="Russian twist">Russian twist</option>
                                     <option value="Gåtur">Gåtur</option>
-                                    <option value="Annet">Annet (spesifiser under)</option>
+                                    <option value="Skritt">Skritt</option> <option value="Annet">Annet (spesifiser under)</option>
                                 </select>
                             </div>
                             <div id="custom-exercise-name-field" style="display: none;">
@@ -261,6 +261,10 @@
                             <div class="form-field-km">
                                  <label for="km">Kilometer (km):</label>
                                  <input type="number" id="km" name="km" step="0.1" min="0.1" max="50" placeholder="5.5">
+                             </div>
+                             <div class="form-field-skritt">
+                                 <label for="skritt">Antall Skritt:</label>
+                                 <input type="number" id="skritt" name="skritt" step="1" min="1" max="35000" placeholder="8000">
                              </div>
                              <div>
                                  <label for="workout-comment">Kommentar (valgfritt):</label>
@@ -330,14 +334,24 @@
 
                 <section id="scoreboard-view" class="view-section">
                     <div class="card bg-card border-card">
-                        <h2 class="text-2xl font-semibold mb-4 text-header">Ukens Scoreboard (XP)</h2>
-                        <ol id="scoreboard-list" class="list-decimal list-inside space-y-2">
-                             <li class="italic">Laster scoreboard...</li>
-                             </ol>
+                        <h2 class="text-2xl font-semibold mb-4 text-header">Ukens Scoreboard</h2>
+                        <div class="mb-6">
+                            <h3 class="text-lg font-medium text-accent mb-2">Høyest XP (Siste 7 dager)</h3>
+                            <ol id="scoreboard-list" class="list-decimal list-inside space-y-1">
+                                <li class="italic">Laster XP-scoreboard...</li>
+                            </ol>
+                        </div>
                         <div id="totalXpChartContainer" class="chart-container"> <h3 class="text-lg font-semibold mb-2 text-accent">Samlet XP per Ukedag (Siste 7 dager)</h3>
                             <div class="relative h-64"> <canvas id="totalXpPerDayChart"></canvas>
                             </div>
-                            <p id="totalXpChartError" class="text-xs italic text-red-400 mt-2"></p> </div>
+                            <p id="totalXpChartError" class="text-xs italic text-red-400 mt-2"></p>
+                        </div>
+                         <div class="mt-6 pt-6 border-t border-card">
+                            <h3 class="text-lg font-medium text-accent mb-2">Flest Skritt (Siste 7 dager)</h3>
+                            <ol id="scoreboard-steps-list" class="list-decimal list-inside space-y-1">
+                                <li class="italic">Laster skritt-liste...</li>
+                            </ol>
+                        </div>
                    </div>
                 </section>
 
@@ -516,7 +530,7 @@
 
 
     <footer class="mt-12 text-center text-sm opacity-70">
-        <p>Fit G4FL Prototype v3.11 - Scoreboard Graph UI</p> </footer>
+        <p>Fit G4FL Prototype v3.12 - Skritt UI</p> </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -527,5 +541,5 @@
     <script src="Script 1.js"></script>
     <script src="Script 3.js"></script>
     <script src="Script 4.js"></script>
-    <script src="Script 5.js"></script> <script src="Script 2.js"></script> </body>
+    <script src="Script 5.js"></script> <script src="Script 6.js"></script> <script src="Script 2.js"></script> </body>
 </html>
